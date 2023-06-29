@@ -1,0 +1,1107 @@
+---
+output:
+  pdf_document:
+    latex_engine: pdflatex
+    includes:
+      in_header: header.tex
+---
+
+# Content
+
+- Executive Summary
+
+- Introduction to the Data
+  - Source
+  - Parameters of the Data
+  
+- Exploratory Data Analysis
+  - Data Cleaning 
+  - Data Visualization
+
+- Model Building
+  - Regression
+    - Logistics Regression on Default 
+    - LASSO
+    - Principle Components Analysis
+    
+  - Clustering
+    - K Means
+    - Hierarchical Clustering
+    
+  - Machine Learning
+    - Decision Trees
+    - Random Forest
+    - Neural Network
+    
+- Conclusion
+
+\newpage
+## Executive Summary
+
+Our team has conducted an in-depth analysis of a loan default dataset of 30,000 observations and 25 variables/parameters. This somewhat popular online dataset (source: UIC) has now been downloaded more than 700,000 times. Our primary objective was to identify patterns among customers in terms of loan repayment and determine the key variables that contribute to predicting loan default. 
+
+Additionally, knowing that most financial institutions deal with a substantial amount of data, we assessed the efficiency of the different models we run, which could be extra information for decision-makers within the company. Also, given some findings, we aimed to provide insights into how financial institutions can effectively target customers.
+
+We employed various modeling techniques to achieve these goals, including regression, clustering, and machine learning. We utilized logistic regression on default, LASSO regression, and principal components analysis (PCA) in the regression category. These models allowed us to understand the relationship between the input variables and the likelihood of loan default and identify significant predictors.
+
+In the clustering category, we applied K-means clustering and hierarchical clustering algorithms. These techniques allowed us to group customers with similar characteristics, enabling financial institutions to segment their customer base better and tailor their strategies accordingly.
+
+Finally, we employed decision trees, random forests, and neural networks in the machine learning category. These models provided more profound insights into complex relationships and patterns within the dataset, enhancing our ability to predict loan default and classify customers accurately.
+
+Our Main Findings:
+
+- The variables representing payment status in different months, demonstrate that information from the recent months carries more weight in determining default probabilities. This suggests that **a person's current payment behavior is a better indicator of their likelihood to default than their past payment history.**
+
+- Our PCA analysis found higher values for its first component, which condense information on individuals who have consistently higher bill statements, suggesting a potential risk for default payment. Also, **higher frequency of lagged repayment over the six-month period seems to indicate a potential financial instability or difficulty in meeting payment obligations** (similar findings of those obtained by the Logistic regression).
+
+- Our cluster analysis revealed two main groups: the first is a financially well-behaved group. Most of them pay the bill on time. They have the lowest default rate. The second is the group with a higher default rate. Given both clusters, **an excellent step for a company interested in dealing with loan defaults would be to obtain background data on clients from different sources and develop targeted, informative content emphasizing small resolutions to help customers attain financial responsibility**.
+
+- About code effiency analysis revelaed that, of our models, the logistic regression model took approximately 1.20 seconds to run, indicating its relatively fast performance. The Lasso model exhibited a longer computation time of around 27.47 seconds and the tree models took longer than 30 seconds. **The clustering method has the been among the fastest one and with very accurate findings**.
+
+
+\newpage
+## Introduction to the Data
+
+### Source
+
+Name: I-Cheng Yeh
+
+Email addresses: (1) icyeh '@' chu.edu.tw (2) 140910 '@' mail.tku.edu.tw
+
+Institutions: (1) Department of Information Management, Chung Hua University, Taiwan. (2) Department of Civil Engineering, Tamkang University, Taiwan. Other contact information: 886-2-26215656 ext. 3181
+
+### Parameters of the Data
+
+This research employed a binary variable, default payment (Yes = 1, No = 0), as the response variable. This study reviewed the literature and used the following 23 variables as explanatory variables:
+
+- X1: Amount of the given credit (NT dollar): it includes both the individual consumer credit and his/her family (supplementary) credit.
+- X2: Gender (1 = male; 2 = female).
+- X3: Education (1 = graduate school; 2 = university; 3 = high school; 4 = others).
+- X4: Marital status (1 = married; 2 = single; 3 = others).
+- X5: Age (year).
+- X6 - X11: History of past payment. We tracked the past monthly payment records (from April to September, 2005) as follows: 
+  - X6 = the repayment status in September, 2005; 
+  - X7 = the repayment status in August, 2005;...;
+  - X11 = the repayment status in April, 2005. 
+  The measurement scale for the repayment status is: -1 = pay duly; 1 = payment delay for one month; 2 = payment delay for two months;...; 8 = payment delay for eight months; 9 = payment delay for nine months and above.
+- X12-X17: Amount of bill statement (NT dollar). 
+  - X12 = amount of bill statement in September, 2005; 
+  - X13 = amount of bill statement in August, 2005;...; 
+  - X17 = amount of bill statement in April, 2005.
+- X18-X23: Amount of previous payment (NT dollar). 
+  - X18 = amount paid in September, 2005; 
+  - X19 = amount paid in August, 2005;...;
+  - X23 = amount paid in April, 2005.
+
+\newpage
+## Exploratory Data Analysis
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+## Libraries and Importing the data
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(glmnet)
+library(scales)
+library(mclust)
+library(knitr)
+library(pander)
+library(mclust)
+library(kableExtra)
+
+data = read_excel("default_of_credit_card_clients.xls", skip = 1)
+data = data[,-1] # remove ID
+```
+
+### Data Cleaning
+
+Before start the modelling process, we cleaned the dataset, which did not required a lot of work, because the data was very well prepared. However, to fit our purposes, here are the steps we did to clean the data:
+
+1) Removing Invalid Education Indices: we filtered out any education indices that are not defined or fall outside the valid range (only 1, 2 and 3 were valid).
+
+2) Removing Invalid Marriage Indices: The next step removes rows where the "MARRIAGE" value is not equal to 0. We removed any marriage indices that were not defined in the data dictionary.
+
+3) Handling Specific Data Values: we cleaned colums 6 to 11 (repayment status columns) by first removing rows where the value in a column is -2, because this value is not defined in the dataset. Secondly, we replace any repayment occurrences with 0.
+
+4) Data Recoding: We then transform the columns "SEX," "EDUCATION," "MARRIAGE," and "default" into factors (categorical variables) for easier analysis.
+
+5) Recoding Education and Marriage Categories: we recoded the "EDUCATION" column so that categories 0, 4, 5, and 6 are combined and labeled as "Other." The category 1 is labeled as "Grad.School," category 2 as "University," and category 3 as "High.School." Similarly, the "MARRIAGE" column had its categories 0 and 3 recoded as "Other," category 1 as "Married," and category 2 as "Single."
+
+6) Adjusting the Order of Payment Categories: finally, we recoded the columns "PAY_0" to "PAY_6," which represent payment status for six months. These columns were transformed into ordered factors, where the levels are sequenced from 0 to 9.
+
+```{r message=FALSE, warning=FALSE}
+# Remove education indices which are not defined
+data <- data %>% filter(EDUCATION<=4 & EDUCATION>0) 
+# Remove MARRIAGE indices which are not defined
+data <- data %>% filter(MARRIAGE!=0)
+for(i in 6:11){
+  # -2 is not defined in the document + index pay duly as 0
+  data <- data[data[,i]!=-2,]
+  data[data[,i]==-1,i] <- 0
+}
+colnames(data)[24] <- 'default'
+
+data <- data %>%
+  mutate(SEX = factor(SEX, labels = c("Male", "Female")),
+         EDUCATION = factor(EDUCATION),
+         MARRIAGE = factor(MARRIAGE)) %>% 
+  mutate(EDUCATION = car::recode(EDUCATION, "c(0, 4, 5, 6) = 'Other';  1 = 'Grad.School'; 2 = 'University'; 3 = 'High.School'"), 
+         MARRIAGE = car::recode(MARRIAGE, "c(0, 3) = 'Other'; 1 = 'Married'; 2 = 'Single'"),
+         default = factor(default, levels = c(0, 1), labels = c("No", "Yes")))
+
+data <- data %>% 
+  mutate(PAY_0 = factor(PAY_0, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_2 = factor(PAY_2, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_3 = factor(PAY_3, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_4 = factor(PAY_4, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_5 = factor(PAY_5, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_6 = factor(PAY_6, order=TRUE,levels=c(seq(0,9, by = 1))))
+```
+
+\newpage
+### Data Visualization
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+## Creating the function we will use as pattern for the data
+theme_loan <- function() {
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14, face = "bold"),
+    plot.title = element_text(size = 16, face = "bold")
+  ) +
+    theme_minimal()
+}
+```
+
+
+#### A. Default variable\newline
+
+The dataset consists of a total of 23150 individuals, out of which 17788 individuals do not default, and 5362 individuals default. Therefore, the overall default rate is 23.16%.
+
+```{r echo=FALSE, fig.height=3.25, fig.width=6, message=FALSE, warning=FALSE}
+# Define the color palette
+my_palette <- c("#FF617D", "#FF879D", "#FFA0B7", "#FFB8CF", "#FFD1E8",
+                "#D6E6FF", "#B8D9FF", "#9ACBFF", "#7CBEFF", "#5DB0FF")
+
+# Create the graph using the updated design
+ggplot(data, aes(x=default)) +
+  geom_bar(fill = my_palette[c(10, 1)], color = "black") +
+  geom_text(stat = "count", aes(label = ..count..), vjust = 3, color = "white", size = 5) +
+  labs(title = 'Loan Deafult?',
+       subtitle = 'Amount of Costumers that defaulted their loan',
+       x = "Default",
+       y = 'Amount of Costumers') +
+  theme_loan()
+
+```
+
+#### B. Amount of given credit (X1)\newline
+
+From the plot and table, it can be observed that the distribution appears to be right-skewed, indicating that there are relatively more individuals with lower credit amounts compared to higher credit amounts. Additionally, the distribution has a relatively large range, suggesting that the credit amounts vary significantly among the individuals in the dataset. Finally, we observe that the third quartile is $220,000, which implies that only a few people could get large amount of credit.
+
+```{r echo=FALSE, fig.height=3.25, fig.width=6, message=FALSE, warning=FALSE}
+ggplot(data, aes(x = LIMIT_BAL)) +
+  geom_histogram(fill = my_palette[10], color = my_palette[7], bins = 20) +
+  labs(title = "Distribution of Credit Amounts",
+       x = "Amount of Given Credit",
+       y = "Total") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  theme_loan()
+```
+
+
+#### C. Gender\newline
+
+Among the male population of 9456 individuals, the default rate is 25.15%. In contrast, among the female population of 13694 individuals, the default rate is 21.81%.\newline
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Creating a simple table for gender
+data_gender <- table(data$SEX, data$default)
+colnames(data_gender)[1] <- 'Paid'
+colnames(data_gender)[2] <- 'Defaulted'
+
+# table
+pander(data_gender, caption = "Loan Default Total among Gender")
+```
+
+From the figure, it can be observed that regardless of gender, the credit limits provided by the bank are concentrated between 100,000 and 200,000. Both male and female customers have their credit limits predominantly within this range. Also, the graph reveals that the default rate for males is slightly higher than that for females.
+
+```{r echo=FALSE, fig.height=4, fig.width=6, message=FALSE, warning=FALSE}
+ggplot(data, aes(x = LIMIT_BAL, fill = default)) +
+  geom_histogram(bins = 40) +
+  facet_wrap(~SEX) +
+  labs(title = "Amount of Given Credit vs. Default - per sex",
+       subtitle = 'Does man and woman have similar loan patterns?',
+       x = "Amount of Given Credit",
+       y = "Total",
+       fill = 'Default?') +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  theme_loan() +
+  scale_fill_manual(values = my_palette[c(10, 1)])
+```
+
+\newpage
+#### D. Education\newline
+
+Among individuals with a high school education (3,995 people), the default rate is 25.86%. Among individuals with a university education (11,519 people), the default rate is 24.72%. Among individuals with a graduate school education (7,564 people), the default rate is 19.55%. Only 72 individuals fall under the "other" category, with a default rate of 4.17%.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Creating a simple table for gender
+data_ed <- table(data$EDUCATION,data$default)
+colnames(data_ed)[1] <- 'Paid'
+colnames(data_ed)[2] <- 'Defaulted'
+
+# table
+pander(data_ed, caption = "Loan Default Total among Educational Level")
+```
+
+From the figure, it is evident that the majority of individuals have a university education, with a moderate default rate. The default rate is lowest for individuals with a graduate school education and highest for those with a high school education. This suggests a negative correlation between education level and default rates, indicating that individuals with higher education tend to have better financial capabilities, resulting in lower default rates. However, due to the small number of individuals in the "other" category and the uncertainty regarding their education level, no further explanation is provided for this group.
+
+The figure reveals that customers with a high school or university education tend to be offered credit limits concentrated between 100,000 and 200,000. Specifically, there is a significant number of customers with a credit limit of 100,000. On the other hand, customers with a graduate school education have a relatively more evenly distributed credit limit range.
+
+```{r echo=FALSE, fig.height=4, fig.width=6, message=FALSE, warning=FALSE}
+ggplot(data, aes(x = LIMIT_BAL, fill = default)) +
+  geom_histogram(bins = 40) +
+  facet_wrap(~EDUCATION) +
+  labs(title = "Amount of Given Credit vs. Default - per education levels",
+       subtitle = 'What are the default patterns among educational levels?',
+       x = "Amount of Given Credit",
+       y = "Total",
+       fill = 'Default?') +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  theme_loan() +
+  scale_fill_manual(values = my_palette[c(10, 1)])
+```
+
+\newpage
+#### E. Marriage Status\newline
+
+Among the married individuals, there are 10,354 people, with a default rate of 24.76%. Among the unmarried individuals, there are 12,527 people, with a default rate of 21.75%. There are 269 individuals classified under "other," with a default rate of 27.50%.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Creating a simple table for gender
+data_marriage <- table(data$MARRIAGE, data$default)[,2]/table(data$MARRIAGE)
+data_marriage <- round(data_marriage * 100, 2)
+
+# table
+pander(data_marriage, caption = "Loan Default among Marital Status (%)")
+```
+
+From the figure, it can be observed that the dataset contains a larger number of unmarried individuals, and their default rate is slightly lower compared to married individuals.  
+
+The figure indicates that regardless of marital status, the credit limits provided by the bank are concentrated between 100,000 and 200,000. Both married and unmarried individuals have their credit limits predominantly within this range.
+
+
+```{r echo=FALSE, fig.height=4, fig.width=6, message=FALSE, warning=FALSE}
+ggplot(data %>% filter(MARRIAGE != "Other"), aes(x = LIMIT_BAL, fill = default)) +
+  geom_histogram(bins = 40) +
+  facet_wrap(~MARRIAGE) +
+  labs(title = "Amount of Given Credit vs. Default - per marital status",
+       subtitle = 'What are the default patterns among marital status?',
+       x = "Amount of Given Credit",
+       y = "Total",
+       fill = 'Default?') +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  theme_loan() +
+  scale_fill_manual(values = my_palette[c(10, 1)])
+```
+
+\newpage
+#### F. Age\newline
+
+From the figure, it is evident that the distribution exhibits a right-skewness. According to summary statistics of this variable, the youngest individual is only 21 years old, while the oldest individual is 79 years old. The average age is around 35 years, indicating that the majority of individuals fall into the youth and middle-aged categories
+
+```{r echo=FALSE, fig.height=3, fig.width=5, message=FALSE, warning=FALSE}
+## Plotting the age distribution
+ggplot(data, aes(x = AGE, fill = ..count..)) +
+  geom_histogram(fill = my_palette[10]) +
+  labs(title = "Age Distribution of the Dataset",
+       x = "Age",
+       y = "Total of Consumers") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  theme_loan()
+```
+
+The boxplot can also helps us visualize the summary statistics of our data. It can be observed that the age distribution of males is slightly higher than that of females in the dataset.
+
+```{r echo=FALSE, fig.height=3, fig.width=5, message=FALSE, warning=FALSE}
+ggplot(data, aes(y=AGE)) + 
+  geom_boxplot() + 
+  facet_wrap( ~ SEX) +
+    labs(title = "Boxplot of the Age Variable by Sex",
+       x = "",
+       y = "Age") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  theme_loan()
+```
+
+\newpage
+#### G. History of past-payments\newline
+
+From the figure, it can be observed that the majority of customers do not have any delayed payments. However, there is still a portion of customers who experience delayed payments, and it can be noted that these customers have a relatively higher default rate.
+
+For customers who have no delayed payment for the past six months (PAY_0 ~ PAY_6 == 0), the default rate is 11.22%.
+
+On the other hand, for customers who have delayed payments in every month for the past six months (PAY_0 ~ PAY_6 != 0), the default rate is 70.61%.
+
+```{r echo=FALSE, fig.height=5, fig.width=6, message=FALSE, warning=FALSE}
+library(gridExtra)
+library(grid)
+data2 <- data
+colnames(data2)[6] <- 'September'
+colnames(data2)[7] <- 'August'
+colnames(data2)[8] <- 'July'
+colnames(data2)[9] <- 'June'
+colnames(data2)[10] <- 'May'
+colnames(data2)[11] <- 'April'
+
+pay_0 <- ggplot(data2, aes(x = September)) + geom_bar() + theme_loan()
+pay_2 <- ggplot(data2, aes(x = August)) + geom_bar() + theme_loan()
+pay_3 <- ggplot(data2, aes(x = July)) + geom_bar() + theme_loan()
+pay_4 <- ggplot(data2, aes(x = June)) + geom_bar() + theme_loan()
+pay_5 <- ggplot(data2, aes(x = May)) + geom_bar() + theme_loan()
+pay_6 <- ggplot(data2, aes(x = April)) + geom_bar() + theme_loan()
+
+# Plotting the combined grid
+combined_plot <- grid.arrange(
+  arrangeGrob(
+    pay_0 + theme(legend.position = "none"),
+    pay_2 + theme(legend.position = "none"),
+    pay_3 + theme(legend.position = "none"),
+    pay_4 + theme(legend.position = "none"),
+    pay_5 + theme(legend.position = "none"),
+    pay_6 + theme(legend.position = "none"),
+    nrow = 2
+  ),
+  top = textGrob("Repayment Status per month - (0 = repaid)", gp = gpar(fontsize = 15, fontface = "bold")),
+  bottom = textGrob("", gp = gpar(fontsize = 13, fontface = "bold")),
+  heights = c(1, 0.1)
+)
+
+grid.draw(combined_plot)
+
+```
+
+\newpage
+## Model Building
+
+## Regression
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+data2 <- read.csv("default_of_credit_card_clients.csv", skip = 1)
+data2 <- data2[,-1] # remove ID
+colnames(data2)[24] <- "default"
+# Remove education indices which are not defined
+data2 <- data2 %>% filter(EDUCATION<=4 & EDUCATION>0) 
+# Remove MARRIAGE indices which are not defined
+data2 <- data2 %>% filter(MARRIAGE!=0)
+for(i in 6:11){
+  # -2 is not defined in the document
+  data2 <- data2[data2[,i]!=-2,]
+  # index pay duly as 0
+  data2[data2[,i]==-1,i] <- 0
+}
+
+x = data2[,-(ncol(data2))]
+y = data2$default
+
+## Selecting the data
+for (i in c(2:4,6:11)){
+  
+  data2[, i] = factor(data2[,i])
+}
+
+## turn x into dummy variable
+x = cbind(x[,-c(2:4,6:11)],fastDummies::dummy_cols(data[,c(2:4,6:11)]))
+for (i in c(1:ncol(x))){x[,i] = as.numeric(x[,i])}
+
+#function for collecting results
+pred_res_func = function(pred_data){
+  
+  pred_res = rep(NA, nrow(pred_data))
+  
+  for (i in 1:nrow(pred_data)){
+    if (pred_data[i,1]>pred_data[i,2]){pred_res[i]=0}
+    else{pred_res[i]=1}
+  }
+  
+  return(pred_res)
+}
+```
+
+### Logistics Regression on Default
+
+Our Logistic Regression model reveals some important insights. While Age doesn't seem to be a significant factor in predicting defaults, all the other coefficients play a crucial role. This implies that variables such as income, credit history, and payment behavior are more influential in determining whether an individual is likely to default on their payments.
+
+Moreover, the results indicate that recent data has a more substantial impact on predicting defaults. The variables Pay_0 to Pay_6, representing payment status in different months, demonstrate that information from the recent months carries more weight in determining default probabilities. This suggests that a person's current payment behavior is a better indicator of their likelihood to default than their past payment history, which makes sense since the current financial situation of someone seems to answer more for one's need for a loan in the first place.
+
+We observe a similar trend in the variables Bill_amt and Pay_amt. Categories closer to the current month are more statistically significant in predicting defaults, which shows that the current billing and payment amounts have a more significant influence on the prediction of defaults.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+start.time = Sys.time()
+
+LR_model = glm(factor(default)~., data = data2, family = binomial)
+
+# R^2
+LR.Rsq = 1- LR_model[["deviance"]]/LR_model[["null.deviance"]]
+# in sample R^2 looks bad
+
+end.time = Sys.time()
+LR.time = end.time - start.time
+```
+
+```{r echo=FALSE}
+## Formatting our Results
+coef_table <- data.frame(coefficients = coef(LR_model),
+                         p_values = summary(LR_model)$coef[, 4])
+coef_table$coefficients <- sprintf("%.3f", coef_table$coefficients)
+coef_table$p_values <- sprintf("%.3f", coef_table$p_values)
+
+coef_table2 <- coef_table %>% 
+  filter(p_values < 0.05)
+
+# Print the table in your RMarkdown document
+pander(coef_table2,
+       caption = "Logistic Regression Results - Significant Variables")
+```
+
+Our findings emphasize the importance of considering two main factors when predicting the likelihood of defaults: (i) recent payment behavior and (ii) current financial status. Although this is an exciting finding, for a financial company, it is somewhat risky to have to wait to see if a loan receiver is likely to default on their payment. However, such results can incentivize the company to be more innovative when monitoring risky loans.
+
+Two suggestions could be:
+
+- Send customers automated alerts that can be generated when significant deviations from standard payment patterns or certain predefined thresholds are crossed.
+- Include analyzing non-traditional data points such as utility bill payments, rental payment history, online purchase behavior, or even social media activity to assess borrowers' creditworthiness (any indication of a recent default history).
+
+### Lasso
+
+For the Lasso model's penalty parameter ($\lambda$), we determined an optimal value of approximately -7 based on AICc, which is a reliable criterion for model selection in generalized linear models. This choice of $\lambda$ yielded favorable results across various glm models. The Lasso results revealed that categories such as PAY_0-6, with closer proximity to the current month, have a more pronounced impact on predicting defaults. Additionally, we observed the significance of education status in predicting defaults, which aligns with our expectations. Typically, individuals with higher education levels tend to have higher salaries, providing them with greater ability to pay their bills. Hence, it is sensible that education status plays a crucial role in our predictive model.
+
+The results obtained from Lasso, both with and without cross-validation, indicate poor performance. In the Lasso model without cross-validation, we obtained an $R^2$ value of 0.1826, which suggests limited interpretability of the model for our dataset. Similarly, in the Lasso model with cross-validation, the mean squared error (MSE) value of 0.8876 is quite high considering our response variable takes binary values of 0 or 1. This indicates that the Lasso model is not a suitable choice for accurately predicting defaults in our dataset.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(gamlr)
+start.time = Sys.time()
+
+Lasso_model.1 = gamlr(x, y=y, lambda.min.ratio=1e-3, family = "binomial")
+
+# R^2 
+Lasso1.Rsq = summary(Lasso_model.1)[which.min(AICc(Lasso_model.1)),][4]
+end.time = Sys.time()
+Lasso1.time = end.time - start.time
+```
+
+```{r echo=FALSE, fig.height=4, fig.width=6}
+plot(Lasso_model.1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+o = order(as.numeric(abs(coef(Lasso_model.1))),decreasing=T)
+pander(data.frame(coef(Lasso_model.1)[o[-1],]))
+```
+
+### Lasso 2 - using CV
+
+We would choose $\lambda =$ -8.4066597.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+start.time = Sys.time()
+
+Lasso_model.2 = cv.gamlr(x, y=y, lambda.min.ratio=1e-3, family = "binomial")
+
+#Mean OOS deviance
+Lasso2.mse = Lasso_model.2$cvm[Lasso_model.2$seg.min] 
+
+end.time = Sys.time()
+Lasso2.time = end.time - start.time
+```
+
+```{r echo=FALSE, fig.height=4, fig.width=6}
+plot(Lasso_model.2)
+```
+
+\newpage
+### Principle Components Analysis (PCA)
+
+Examining the dataset, we noticed that certain variables capture similar information but at different points in time, so we consider  Principal Component Analysis (PCA) as a practical option to reduce the dimensionality of these variables. By applying PCA, we aim to simplify the analysis process and identify the primary factors that influence the response variable, which, in our case, is the default payment behavior.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+data3 <- read.csv("default_of_credit_card_clients.csv", skip = 1)
+data3 <- data3[,-1] # remove ID
+colnames(data3)[24] <- "default"
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Remove education indices which are not defined
+data3 <- data3 %>% filter(EDUCATION<=4 & EDUCATION>0) 
+# Remove MARRIAGE indices which are not defined
+data3 <- data3 %>% filter(MARRIAGE!=0)
+for(i in 6:11){
+  # -2 is not defined in the document
+  data3 <- data3[data3[,i]!=-2,]
+  # index pay duly as 0
+  data3[data3[,i]==-1,i] <- 0
+}
+
+# Revalue SEX, 1=male, 0=female
+data3$SEX <- ifelse(data3$SEX == 1, 1, 0)
+# Revalue MARRIAGE, 1= married, 0=single
+data3$MARRIAGE <- ifelse(data3$MARRIAGE == 1, 1, 0)
+
+x = data3[,-(ncol(data3))]
+y = data3$default
+x_scale = scale(x)
+```
+
+Looking at the correlation plot, we can see some of our suspicions confirmed: the variables that measure the same phenomenon show a certain degree of correlation. Regarding the demographic factors, age, and marriage display a positive correlation. Specifically, when MARRIAGE=1, indicating being married, and MARRIAGE=0, indicating being single, the correlation with age is expected since the likelihood of marriage tends to increase. However, the correlations between other pairs of demographic factors were weak.
+
+```{r echo=FALSE, fig.height=5, fig.width=6, message=FALSE, warning=FALSE}
+library(corrplot)
+corrplot(cor(x))
+```
+
+```{r include=FALSE}
+## Applying PC
+pc_fx <- prcomp(x_scale)
+
+## Rotating 
+v_fx <- predict(pc_fx)
+
+## Exloring the data - principal component scores
+fx2 <- pc_fx$rotation
+fx2 <- apply(fx2,2,function(x){round(x,3)})
+```
+
+\newpage
+From the output below, it seems that the first 4 principal components explains most the variation in the dataset and:  
+
+- PC1 seems to capture the people who have large amount of bill statement for the six month;
+- PC2 seems to capture the people who have more lagged repayment for the six months;
+- PC3 seems to capture the people who have large amount of previous payment;
+- PC4 seems to capture people who are older and married which makes sense since this two covariates correlates positively as older people are more likely to be married.
+
+```{r echo=FALSE, fig.height=5, fig.width=6, message=FALSE, warning=FALSE}
+## Checking the values
+summary(pc_fx)
+```
+
+```{r echo=FALSE, fig.height=5, fig.width=6, message=FALSE, warning=FALSE}
+## Observing the first components
+#fx2[,c(1:6)]
+```
+
+```{r echo=FALSE, fig.height=4, fig.width=5, message=FALSE, warning=FALSE}
+## Plotting our pcs
+plot(pc_fx, main = "Scree Plot")
+mtext(side=1, "Principal Components",  line=1, font=2)
+```
+
+\newpage
+### AICC and Lasso selection
+
+Here we decided to use two techniques to select which principal components are most important in explaining the variation in default payment and could be later used in Principal Components Regression.
+
+#### Glm on First K
+
+```{r include=FALSE}
+df_v_fx <- as.data.frame(v_fx)
+
+kfits <- lapply(1:23, 
+	function(K) glm(y ~ ., data = df_v_fx[,1:K,drop=FALSE]))
+	
+aicc <- sapply(kfits, AICc) # apply AICc to each fit
+#which.min(aicc) ## it likes 19 factors best
+
+# Final
+#summary(PEglm <- glm(y ~ ., data = df_v_fx[,1:19]))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+## Regressing default onto x - glm on first K
+result <- summary(PEglm <- glm(y ~ ., data = df_v_fx[,1:4]))
+pander(result, caption = 'GLM on first K')
+```
+
+#### Glm on selected factors (AICc)
+
+AICc had its lowest value for the first nineteen factors, a somewhat suspicious result for the amount of variables selected. But we will comeback to this later.
+
+Using 19 Principal components selected by AIC the goodness of fit is about 21% which is not a good enough result. Let's then take a look at LASSO.
+
+```{r include=FALSE}
+aicc <- sapply(kfits, AICc) # apply AICc to each fit
+which.min(aicc) ## it likes 19 factors best
+
+# Final
+result2 <- summary(PEglm <- glm(y ~ ., data = df_v_fx[,1:19]))
+pander(result2, caption = 'GLM on selected factors')
+```
+
+We can see that LASSO elinimates PC3-6, 10-12 and 19 that AIC selects.
+
+```{r echo=FALSE, fig.height=3.5, fig.width=7, message=FALSE, warning=FALSE}
+## Regressing y=default onto currency movement factors - Lasso
+lassoPCR <- cv.gamlr(x=v_fx, y=y, nfold=20)
+
+## Lasso
+coef(lassoPCR) 
+
+## plot 'em
+par(mfrow=c(1,2))
+plot(aicc, pch=21, bg="maroon", xlab="K", ylab="AICc")
+
+plot(lassoPCR)
+```
+
+We then run the regression on the initial covariates and later the PCR model
+
+```{r echo=FALSE, fig.height=3.5, fig.width=7, message=FALSE, warning=FALSE}
+### Running a lasso straight on the initial covariates
+lasso <- cv.gamlr(x=x, y=y, nfold=20)
+
+## Plotting
+par(mfrow=c(1,2))
+plot(lasso, main = "Regression onto original covariates")
+plot(lassoPCR, main = "PCR")
+```
+
+We can see that the minimum MSE of using principal components to do LASSO regression and using original covariates to do LASSO differs very little. It may suggest that doing PCA this way is not very effective. Looking at the AIC plot above, we see that there are several flat stages meaning that the PC's of that stage didn't contribute much in improving the model. We suspect that it might be caused by the redundancy in the covariates. Thus we decided to **collapse the columns that measure the same thing and do PCA again.**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data_combine = x
+data_combine$BILL_AMT = rowSums(x[,c("BILL_AMT1", "BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6")])
+data_combine$PAY_AMT = rowSums(x[,c("PAY_AMT1", "PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6")])
+data_combine$PAY =  rowSums(x[,c("PAY_0", "PAY_2","PAY_3","PAY_4","PAY_5","PAY_6")])
+
+data_combine = data_combine[,-(6:23)]
+
+data_combine_scale = scale(data_combine)
+```
+
+\newpage
+### Feature engineering and running PCA again
+
+After collapsing the columns that measure similar phenomenons in different moments in time, we run our PCA again and these were our main findings.
+
+1. PC1 seems to represent the young educated adults that have good credit history as they spend more and pay on time;  
+2. PC2 seems to represent married adults who does not really use credit card;
+3. PC3 seems to represent young male who likes to delay payments;
+4. PC4 seems to represent young adults that spend more and always delay payments.
+
+```{r echo=FALSE, fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+## Applying PC for the collapsed data
+pc_fx <- prcomp(data_combine_scale)
+
+## Rotating 
+v_fx <- predict(pc_fx)
+
+## Exloring the data - principal component scores
+fx2 <- pc_fx$rotation
+fx2 <- apply(fx2,2,function(x){round(x,3)})
+
+## Checking the values
+summary(pc_fx)
+
+## Observing the first components
+fx2[,c(1:6)]
+
+## Plotting our pcs
+plot(pc_fx, main = "Scree Plot")
+mtext(side=1, "Principal Components",  line=1, font=2)
+```
+
+Now we do AIC and LASSO selection again on the collapsed data and we see AIC choose first 6 and LASSO choose first 5 which is pretty similar. And look at the AIC plot we don't observe the flat stage anymore, indicating that the PC's are now more representive.
+
+```{r echo=FALSE, fig.height=3.5, fig.width=7, message=FALSE, warning=FALSE}
+df_v_fx <- as.data.frame(v_fx)
+
+kfits <- lapply(1:8, 
+	function(K) glm(y ~ ., data = df_v_fx[,1:K,drop=FALSE]))
+	
+aicc <- sapply(kfits, AICc) # apply AICc to each fit
+
+# Final
+result3 <- summary(PEglm <- glm(y ~ ., data = df_v_fx[,1:6]))
+pander(result3, caption = 'Lasso after feature engineering our data')
+```
+
+## AIC and Lasso selection using our Featured engineered
+
+```{r echo=FALSE, fig.height=4, fig.width=7, message=FALSE, warning=FALSE}
+## Regressing y=default onto currency movement factors - Lasso
+lassoPCR <- cv.gamlr(x=v_fx, y=y, nfold=20)
+
+## Lasso
+coef(lassoPCR) 
+
+## plot 'em
+par(mfrow=c(1,2))
+plot(aicc, pch=21, bg="maroon", xlab="K", ylab="AICc")
+
+plot(lassoPCR)
+```
+
+## LASSO PCR and simple LASSO
+
+Now we compare the LASSO PCR using collapsed data (featured engineered) and LASSO using original 23 covariates and now the minimum MSE of LASSO PCR improves more than not using collapsed data. This makes sense since by adding the adding up the Repayment status, Amount of bill statement and Amount of previous payment up across month, we are still able to get the idea of the spending and payment behavior of each individual. Therefore, since we're interested in the overall behavior of each individual in explaining and predicting the default payment rather than monthly behavior, it makes sense to combine some covariates as it simplifies analysis and makes PCA more meaningful.
+
+```{r echo=FALSE, fig.height=4, fig.width=7, message=FALSE, warning=FALSE}
+### Running a lasso straight on the initial covariates
+lasso <- cv.gamlr(x=x, y=y, nfold=20)
+
+## Plotting
+par(mfrow=c(1,2))
+plot(lasso, main = "Regression onto original covariates")
+plot(lassoPCR, main = "PCR")
+```
+
+
+\newpage
+## Clustering
+
+Cluster analysis is a valuable technique used in various fields to gain insights from data by identifying groups or clusters of similar objects or observations. For the Loan Default data, we have two main goals in clustering our data:
+
+1. Segmentation and targeting: because clustering is popular in market segmentation and customer profiling, we want to identify the specific customer segment that are more likely to default their loans.
+
+2. Anomaly detection: because clustering is a very good technique to identify outliers or anomalies within the data, this will be especially relevant in our case. For financial firms such ours (loan business) we need to identify the outlier that might have higher probability to get default, causing financial losses.  
+
+Following, we will perform three different clustering methods (K-means, Hierarchial clustering and Gaussian Mixture Models - GMM). Some methods are model-based, and some are not. 
+
+### K Means
+
+K-means is a popular clustering algorithm. Here, we aim to partition our dataset into a predetermined number of clusters. In the code bellow, we first choose the number of clusters ($k$) and randomly select $k$ initial centroids. We then proceed to calculate the distance between each data point and the centroids. Assign each data point to the nearest centroid. Finally, we recalculate the centroids based on the data points assigned to each cluster, and repeat steps two and three until the clusters stabilize (convergence).
+
+Once convergence is reached, the we then check the final cluster assignments and the coordinates of the centroid for each cluster, which will then be used for further analysis and interpretation.
+
+We compare their within-cluster sum of square (WCSS) and choose the appropriate number $k$. Noted that K-means only works on numerical variables.
+
+```{r echo=FALSE, fig.height=5, fig.width=6, message=FALSE, warning=FALSE}
+set.seed(1234)
+# prepare data
+data_kmeans = data[,c(1,5,12:23)]
+# Empty vector to store WCSS values
+wcss =  numeric(10)  
+for (k in 1:10) {
+  model <- kmeans(data_kmeans, centers = k)
+  wcss[k] <- model$tot.withinss
+}
+plot(1:10, wcss, type = "b",
+     xlab = "Number of clusters (k)",
+     ylab = "Within-cluster sum of squares (WCSS)",
+     main="WCSS of K-means with different k") 
+```
+
+```{r}
+# find elbow, k=4 is appropriate
+kmeans_result = kmeans(data_kmeans, centers = 5)
+kmeans_result$centers
+```
+
+When plotting the age as our x-axis and the amount of credit given as our y-axis, and breaking the plot by Education (into three categories), we have an interesting visualization of the job done by our clustering algorithm. 
+
+We can see that clusters three (3) and four (4) discovered a somewhat of a niche costumer. Cluster three seems to be formed predominantly by costumers for which a low limit was given, almost similar across all ages. Cluster four (4), however, seems a costumer segment for which a higher amount of credit was given, which seems to be more common for people with grad school level of education.
+
+Another relevant takeaways from our clusters is that, it seems that clusters one (1) and five (5) share a common characteristics across all level of education for a range of amount of credit given. This might indicate that, for these variables, this is a grey area and that we might need other models to help us identify which other variables can help us disentangle this information.
+
+```{r echo=FALSE, fig.height=5, fig.width=6, message=FALSE, warning=FALSE}
+## Plotting our clusters
+cluster_data <- data %>% 
+  mutate(cluster = kmeans_result$cluster) %>% 
+  filter(EDUCATION != 'Other')
+
+# Color pallete for our clusters
+cluster_data$cluster <- as.factor(cluster_data$cluster)
+cluster_colors <- c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00")
+
+cluster_data %>%
+  ggplot(aes(x = AGE, y = LIMIT_BAL, color = cluster)) +
+  geom_point() +
+  facet_wrap(~EDUCATION) +
+  scale_color_manual(values = cluster_colors) +
+  theme_loan() +
+  labs(title = "Loan Default - K-means Clustering",
+       subtitle = 'Can we identify clear groups within our data?',
+       x = "Age",
+       y = "Amount of Credit ($)",
+       color = 'Clusters')
+```
+
+\newpage
+### Hierarchical Clustering
+
+Hierarchical clustering is a clustering algorithm that aims to create a hierarchical structure of clusters based on the similarity or dissimilarity between data points.
+
+Hierarchical clustering use different linkage criteria to define the similarity or distance between clusters and guide the merging process. In our model, we will run our hierarchical clustering for the three following linkage criteria:
+
+  - Single linkage: The similarity between two clusters is defined as the minimum distance between any two data points, one from each cluster.
+  - Complete linkage: The similarity between two clusters is defined as the maximum distance between any two data points, one from each cluster.
+  - Average linkage: The similarity between two clusters is defined as the average distance between all pairs of data points, one from each cluster.
+
+```{r include=FALSE}
+# variables clustering
+# only use numerical data to do hierarchical clustering
+# use correlation as similarity measure
+# variable clustering
+data_hc = data[,-c(2,3,4,6,7,8,9,10,11,24)]
+cor_data = cor(data_hc)
+data_dist = as.dist(cor_data)
+Msingle = hclust(data_dist, method = "single")
+Mcomplete = hclust(data_dist, method = "complete")
+Maverage = hclust(data_dist, method = "average")
+```
+
+For each one of them, our findings can be summarized as follows:
+
+1. Single Linkage: We can see that `PAY` and `BILL` two different categorical variables are clustering together. And, `Age` is the most closed to the most far payment `PAY_AMT6`. 
+
+2. Complete Linkage: It prefers to cluster some period of `PAY` and `BILL` together. 
+
+3. Average Linkage: The pattern is unclear. But, we still have that `Age` is the most closed to the most far payment `PAY_AMT6`. 
+
+```{r echo=FALSE, fig.height=5, fig.width=6, message=FALSE, warning=FALSE}
+par(mfrow = c(1, 3)) 
+plot(Msingle)
+plot(Mcomplete)
+plot(Maverage)
+```
+
+By clustering variables, we can identify groups or clusters of variables that are related to each other. Variables within the same cluster often have similar behavior or share common underlying factors. This grouping can help in understanding the structure and organization of the dataset, revealing hidden patterns or relationships.\newline
+
+Next, we want to cluster by observations, but our observations is too large, that we need to reach from other approaches. we choose to randomly sample $500$ observations from our dataset, and trying to find the pattern in the sample. 
+
+```{r echo=FALSE, results='hide'}
+# Subset the data by randomly selecting 500 observations
+subset_data <- data_hc[sample(nrow(data_hc), 500), ]
+
+# Perform hierarchical clustering on the subset data
+hc <- hclust(dist(subset_data))
+
+# Summary of clustered sample observation
+cluster_labels <- cutree(hc, k = 3)
+subset_data$cluster_labels <- cluster_labels
+#summary(subset_data[subset_data$cluster_labels==1,])
+#summary(subset_data[subset_data$cluster_labels==2,])
+summary(subset_data[subset_data$cluster_labels==3,])
+```
+
+Hierarchical clustering allows for a bottom-up approach, starting with individual data points and interactively merging clusters based on similarity or distance. The resulting dendrogram provides a visual representation of the cluster hierarchy, and by cutting the dendrogram at an appropriate level, you can obtain clusters at different granularities.\newline
+
+This algorithm is flexible and can handle various types of data and distance/similarity measures, making it widely used in exploratory data analysis and visualization.
+
+### Gaussian Mixture Models (GMM)
+
+Gaussian Mixture Models (GMM) is a probabilistic clustering algorithm that assumes the underlying data distribution is a mixture of Gaussian distributions. GMM clustering aims to model the data as a collection of Gaussian components, each representing a cluster.
+
+But now we can use package `mclust` to avoid probability calculation. We also found three clusters in this method.
+
+```{r eval=FALSE, include=FALSE, results='hide'}
+# Perform GMM clustering
+data_mc <- data
+gmm_model <- Mclust(data_mc[, -24], G = 3)
+summary(gmm_model)
+
+# Retrieve the cluster assignments
+cluster_labels <- gmm_model$classification
+
+# Summary of clustered sample observation
+data_mc$cluster_labels <- cluster_labels
+summary(data_mc[data_mc$cluster_labels==1,])
+summary(data_mc[data_mc$cluster_labels==2,])
+summary(data_mc[data_mc$cluster_labels==3,])
+
+# Visualization 
+# plot(gmm_model, what=c("density"))
+```
+
+As a summary, here are the three main conclusions from our GMM model.
+
+1. First cluster is a well-behaved group. Most of them pay the bill on time. They have the lowest default rate. We can proactively communicate with them, keeping customers informed about changes, updates, and new offerings. For this group, one major suggestion would be to increase the amount of relevant information shared, such as interest rate changes or new products/services. Being proactive in the our company's communication will likely demonstrate a transparency that keeps customers engaged.
+
+2. Second cluster is more likely to be a group has higher default rate. We can develop informative content that emphasizes financial responsibility and highlights the importance of meeting financial obligations. Share tips on budgeting, managing debt, and improving credit scores. As a company trying to target loan default, providing a trusted advisor and resource for responsible financial practices can be useful for costumers identified within this group.
+
+3. Third cluster includes some extreme outliers that has the highest payment. And, overall they have a little higher credit. We can offer exclusive benefits, discounts, or cashback programs that provide tangible value to your customers. For this group, establishing a formal channel of regular communications of rewards and benefits they can enjoy, is likely to reinforce their loyalty to our brand.
+
+
+\newpage
+## Machine Learning
+
+### Decision Trees
+
+```{r, include=FALSE}
+# set.seed for sampling
+set.seed(12345)
+```
+
+By using cross-validation, we have determined that utilizing a decision tree with a size of 4 would yield a better result, as evidenced by a lower deviance.
+
+```{r message=TRUE, warning=FALSE, include=FALSE}
+library(tree)
+
+start.time = Sys.time()
+
+for (i in c(2:4, 6:11)){
+  data2[, i] = factor(data2[,i])
+}
+
+tree_model.1 = tree(factor(default) ~ ., data=data2, mincut=1)
+
+end.time = Sys.time()
+tree_noncv.time = end.time - start.time
+
+start.time = Sys.time()
+tree_cvmodel = cv.tree(tree_model.1, K=10) 
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tree_size_res = matrix(tree_cvmodel$dev,1,length(tree_cvmodel$dev), byrow=T)
+colnames(tree_size_res) = as.character(tree_cvmodel$size)
+rownames(tree_size_res) = c("deviance")
+pander(tree_size_res)
+```
+
+In the initial split, the decision tree divides the group into two subsets based on whether individuals paid their September's bill duly or not. In the subsequent split, despite considering the amount of money paid for the bill in the past two months, the tree finds that both subsets still belong to the same group. This phenomenon may occur due to the decision tree independently considering multiple features within a group and creating separate splits based on their respective conditions. Moving forward, the third split occurs by examining whether a person's September's bill payment was delayed by one month or more.
+
+The model achieves an accuracy of approximately 82.01%, which is a promising outcome considering the simplicity of the decision tree approach. The efficiency of this model makes it suitable for prediction tasks. However, it is crucial to acknowledge that decision tree models lack robustness. They are sensitive to minor variations in the training data, leading to significant differences in tree structures and predictions. This lack of robustness reduces the reliability of decision trees in scenarios with high data variability or when encountering slight changes in the input data.
+
+```{r echo=FALSE}
+tree_model.2 = prune.tree(tree_model.1, best=4)
+
+plot(tree_model.2)
+text(tree_model.2, cex=.75, font=2)
+
+tree_model.pred = predict(tree_model.2, data)
+tree_model.pred_res = pred_res_func(tree_model.pred)
+tree_model.accuracy = 1 - (length(which(tree_model.pred_res != data$default))/nrow(data))
+
+end.time = Sys.time()
+tree_cv.time = end.time - start.time
+```
+
+### Random Forest
+
+For the Random Forest model, we sacrifice the interpretability of a single tree. However, in this algorithm, we essentially aggregate the predictions of multiple bootstrapped trees, which helps to smooth out the individual tree predictions. As a result, we typically achieve better overall results compared to using a single tree. 
+
+Using the random forest model on this dataset resulted in an accuracy of approximately 92.65%. Random forests are known for their better robustness and ability to reduce overfitting compared to individual decision trees. However, when evaluating the models on a hold-out set, the decision tree model actually outperformed the random forest model, achieving an accuracy of 82.31% compared to 82.09% for the random forest. We believe this difference in performance may be attributed to the hold-out set exhibiting relatively straightforward patterns that a single decision tree can capture effectively. Considering the significant increase in time required to build the random forest model (approximately 20 times longer), the decision tree model appears to be more suitable for this dataset.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(randomForest)
+
+rf_model = randomForest(factor(default) ~ ., data=data, ntree = 100, nodesize = 10) #ntree = 100(b/c computational issue)
+
+rf_model.pred = predict(rf_model, data)
+rf_model.accuracy = 1 - (length(which(rf_model.pred != data$default))/nrow(data))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# - if we split into training and testing set
+start.time = Sys.time()
+
+train_idx = sample(1:nrow(data), 0.7 * nrow(data))  # 70% for training
+train_data = data[train_idx, ]
+test_data = data[-train_idx, ]
+
+rf_spmodel = randomForest(factor(default) ~ ., data=train_data, ntree = 100, nodesize = 10)
+
+rf_spmodel.pred = predict(rf_spmodel, test_data)
+rf_spmodel.accuracy = 1 - (length(which(rf_spmodel.pred != test_data$default))/nrow(test_data))
+# it still looks good.
+
+end.time = Sys.time()
+rf.time = end.time - start.time
+```
+
+```{r include=FALSE}
+library(neuralnet)
+tree_spmodel = tree(factor(default) ~ ., data=train_data, mincut=1)
+
+tree_spmodel.pred = pred_res_func(predict(tree_spmodel, test_data))
+tree_spmodel.accuracy = 1 - (length(which(tree_spmodel.pred != test_data$default))/nrow(test_data))
+```
+
+### Artificial Neural Network
+
+The neural network (NN) model is one of the machine learning models that operates as a black box, meaning we don't have complete visibility into how it works internally. However, conceptually, the NN model involves performing various operations such as logistic regression, ReLU, and other models. These operations help to project the input data points onto different spaces, enabling the model to make better predictions.
+
+Using the neural network model with 5 hidden layers, we achieved an accuracy of 76.67%. Considering that the model building process took only about 2 seconds, this is a decent result. If we were to add more hidden layers, it could increase the accuracy further. Nowadays, it is common for people to use models with even 50 hidden layers, as deeper architectures can capture more intricate patterns in the data. However, due to our computational limitations, we opted for 5 hidden layers, which still provided a satisfactory accuracy while requiring less time to train. Therefore, we believe the neural network model is a viable and effective choice for our dataset.
+
+```{r echo=TRUE}
+start.time = Sys.time()
+
+data_matrix = model.matrix( 
+  ~ LIMIT_BAL + SEX + EDUCATION + MARRIAGE + AGE + PAY_0 + PAY_2 + PAY_3 + PAY_4 + PAY_5 + PAY_6 + BILL_AMT1 + BILL_AMT2 + BILL_AMT3 + BILL_AMT4 + BILL_AMT5 + BILL_AMT6 + PAY_AMT1 + PAY_AMT2 + PAY_AMT3 + PAY_AMT4 + PAY_AMT5 + PAY_AMT6 + default, 
+  data = data2)
+
+train_data_matrix = data_matrix[train_idx, ]
+test_data_matrix = data_matrix[-train_idx, ]
+
+n = colnames(train_data_matrix[,-1])
+f = as.formula(paste("factor(default) ~", paste(n[!n %in% "default"], collapse = " + ")))
+
+nn_model = neuralnet(f, data = train_data_matrix,
+                     hidden = 4, 
+                     threshold = 0.01,
+                     linear.output = T)
+
+# Typically, increasing the number of hidden layers in a nn leads to improved accuracy. However, in this case, we have restricted ourselves to using only 5 hidden layers due to computational limitations. While adding more hidden layers would likely yield better results, it would loss efficiency.
+
+nn_model.pred = predict(nn_model, test_data_matrix)
+nn_model.pred_res = pred_res_func(nn_model.pred)
+nn_model.accuracy = 1 - (length(which(nn_model.pred_res != test_data$default))/nrow(test_data_matrix))
+
+end.time = Sys.time()
+nn.time = end.time - start.time
+```
+
+### Extra Analysis - model efficiency
+
+The efficiency analysis of the different models reveals varying computational times. Given financial companies normally due with huge volumes of data, model efficiency can sooner become a very relevant topic. Thus, we displayed this table below to show a comparison of the time needed - in seconds - for each model to run. \newline 
+
+The logistic regression model took approximately 1.20 seconds to run, indicating its relatively fast performance. The Lasso model exhibited a longer computation time of around 27.47 seconds, suggesting a higher complexity due to its regularization component. The tree model without cross-validation required about 7.13 seconds, while the tree model with cross-validation and the random forest model took around 95.63 seconds each, indicating a significantly longer computation time compared to the other models.Lastly, the neural network model also took approximately 95.63 seconds to complete, suggesting a longer computational duration due to its complex architecture.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+result_time = matrix(c(LR.time, Lasso1.time, Lasso2.time,
+                       tree_noncv.time, tree_cv.time,
+                       rf.time,
+                       nn.time),
+                     1, 7, byrow = T)
+
+colnames(result_time) = c("Logistic Regression", "Lasso(without cv)",
+                          "Lasso(with cv)", "Tree(without cv)",
+                          "Tree(with cv)", "Random Forest",
+                          "Neural Network")
+
+pander(result_time)
+```
+
+\newpage
+## Conclusion
+
+Our Loan Default Analysis focused on answering four questions:
+
+1. What are the key variables that contribute to predicting loan default?
+2. How can financial institutions effectively target customers based on our findings?
+3. Given most financial institutions deal with large amounts of data, what is the efficiency of the different models we used?
+4. How can financial institutions proactively address loan defaults?
+
+Our primary objective was to identify the variables that have the most significant impact on predicting loan default. By utilizing various modeling techniques such as logistic regression, LASSO regression, and principal components analysis (PCA), we aimed to uncover the key factors influencing the likelihood of loan default. Our study showed that recent data has a more substantial impact on predicting defaults. For instance, the variables representing payment status in other months demonstrate that information from recent months carries more weight in determining default probabilities.
+
+Another key objective was to provide insights into how financial institutions can leverage the findings from our analysis to target customers better. By understanding the patterns and characteristics of customers who are more likely to default on their loans, financial institutions can develop targeted strategies to minimize default rates and optimize loan repayment rates. 
+
+Given that financial institutions typically deal with large volumes of data, we needed to assess the efficiency of the different models we employed. By analyzing the computation time of each model, we provided insights into their efficiency in handling the dataset. Efficient models can significantly enhance the speed and scalability of data analysis processes, allowing institutions to use their data more efficiently. Our analysis suggested that the tree models and the Logistic Regression are good options to balance accuracy and efficiency.
+
+Finally, based on our main findings, we aimed to provide recommendations on how financial institutions can proactively address loan defaults. For example, since we discovered that a person's current payment behavior carries more weight in determining default probabilities than in their past payment history. This insight suggests that financial institutions should focus on monitoring and analyzing customers' recent payment behaviors to identify potential default risks and take appropriate actions promptly.
+
+Additionally, the clustering analysis helped identify distinct groups of customers with different default rates, what could help institutions to gather background data and develop targeted strategies to assist customers in achieving financial responsibility.
+
+In conclusion, our analysis aimed to answer these critical questions by applying various modeling techniques to the loan default dataset. By identifying key predictors, assessing model efficiency, and suggesting proactive measures, our findings offer valuable guidance for financial institutions to manage loan default risks and optimize their lending strategies.

@@ -1,0 +1,9 @@
+---
+title: "Loan Classification Analysis"
+author: "Group 20"
+date: "BUSN 41201 - Big Data"
+output:
+  pdf_document:
+    includes:
+      in_header: cover_bth.tex
+---
